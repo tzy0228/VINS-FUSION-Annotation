@@ -1,0 +1,72 @@
+%YAML:1.0
+
+#common parameters
+#support: 1 imu 1 cam; 1 imu 2 cam: 2 cam; 
+imu: 1         
+num_of_cam: 2  
+
+imu_topic: "/camera/imu"
+image0_topic: "/camera/infra1/image_rect_raw"
+image1_topic: "/camera/infra2/image_rect_raw"
+output_path: "/home/tzy/output"
+
+cam0_calib: "left.yaml"
+cam1_calib: "right.yaml"
+image_width: 640
+image_height: 480
+   
+
+# Extrinsic parameter between IMU and Camera.
+estimate_extrinsic: 0   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
+                        # 1  Have an initial guess about extrinsic parameters. We will optimize around your initial guess.
+
+#cam0 to body
+body_T_cam0: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [ 0.99994541, 0.00421397, 0.00956181, -0.02966641,
+      -0.00427543, 0.99997028, 0.00641563, 0.00135581,
+      -0.00953449, -0.00645616, 0.9999337, 0.01513884,
+      0, 0, 0, 1]
+#cam1 to body
+body_T_cam1: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [ 0.99996667, 0.00423679, 0.00697879, 0.06545514,
+      -0.00428232, 0.99996956, 0.00652227, 0.00101751,
+      -0.00695095, -0.00655194, 0.99995438, 0.01459833,
+      0, 0, 0, 1 ]
+
+#Multiple thread support
+multiple_thread: 1
+
+#feature traker paprameters
+max_cnt: 150            # max feature number in feature tracking 特征跟踪中的最大特征数
+min_dist: 30            # min distance between two features  两个特征之间的最小距离
+freq: 10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
+F_threshold: 1.0        # ransac threshold (pixel)ransac 阈值（像素）
+show_track: 1           # publish tracking image as topic 将跟踪图像发布为主题
+flow_back: 1            # perform forward and backward optical flow to improve feature tracking accuracy 执行正向和反向光流以提高特征跟踪精度
+
+#optimization parameters
+max_solver_time: 0.04  # max solver itration time (ms), to guarantee real time 最大求解器迭代时间（毫秒），保证实时
+max_num_iterations: 8   # max solver itrations, to guarantee real time 最大求解器迭代次数，以保证实时
+keyframe_parallax: 10.0 # keyframe selection threshold (pixel) 关键帧选择阈值（像素）
+ 
+#imu parameters       The more accurate parameters you provide, the better performance
+acc_n: 0.01229199829486073         # accelerometer measurement noise standard deviation. #0.2   0.04    0.1
+gyr_n: 0.00282608342737        # gyroscope measurement noise standard deviation.     #0.05  0.004   0.01
+acc_w: 0.000294331088336         # accelerometer bias random work noise standard deviation.  #0.002   0.001
+gyr_w: 0.000105243922055      # gyroscope bias random work noise standard deviation.     #4.0e-5
+g_norm: 9.73473346         # gravity magnitude
+
+#unsynchronization parameters
+estimate_td: 1                      # online estimate time offset between camera and imu
+td: 0.0018085345916211656                             # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
+
+#loop closure parameters
+load_previous_pose_graph: 1        # load and reuse previous pose graph; load from 'pose_graph_save_path'
+pose_graph_save_path: "/home/tzy/out" # save and load path
+save_image: 1                   # save image in pose graph for visualization prupose; you can close this function by setting 0 
