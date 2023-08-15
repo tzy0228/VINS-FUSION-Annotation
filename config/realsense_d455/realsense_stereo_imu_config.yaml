@@ -47,7 +47,7 @@ max_cnt: 150            # max feature number in feature tracking 特征跟踪中
 min_dist: 30            # min distance between two features  两个特征之间的最小距离
 freq: 10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
 F_threshold: 1.0        # ransac threshold (pixel)ransac 阈值（像素）
-show_track: 1           # publish tracking image as topic 将跟踪图像发布为主题
+show_track: 1           # publish tracking image as topic 将跟踪图像发布为topic
 flow_back: 1            # perform forward and backward optical flow to improve feature tracking accuracy 执行正向和反向光流以提高特征跟踪精度
 
 #optimization parameters

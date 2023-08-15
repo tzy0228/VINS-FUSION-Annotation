@@ -49,7 +49,7 @@ void img1_callback(const sensor_msgs::ImageConstPtr &img_msg)
 cv::Mat getImageFromMsg(const sensor_msgs::ImageConstPtr &img_msg)
 {
     cv_bridge::CvImageConstPtr ptr;
-    if (img_msg->encoding == "8UC1")
+    if (img_msg->encoding == "8UC1")//8位灰度图像
     {
         sensor_msgs::Image img;
         img.header = img_msg->header;
@@ -84,12 +84,13 @@ void sync_process()
             // 双目的话做一个简单的时间同步
             if (!img0_buf.empty() && !img1_buf.empty())
             {
-                double time0 = img0_buf.front()->header.stamp.toSec();
+                double time0 = img0_buf.front()->header.stamp.toSec();//front 返回值为队列中的第一个元素，也就是最早、最先进入队列的元素
                 double time1 = img1_buf.front()->header.stamp.toSec();
                 // 0.003s sync tolerance时间同步阈值为0.003秒
+                // 不断丢弃老帧，直到image0和image1能匹配的上。然后将双目图像，时间戳输入到估计器中，然后进行光流法跟踪等一系列后续计算
                 if(time0 < time1 - 0.003)
                 {
-                    img0_buf.pop();
+                    img0_buf.pop();//如果img0里最靠前的元素太老了，就出队列：先进先出
                     printf("throw img0\n");
                 }
                 else if(time0 > time1 + 0.003)
@@ -136,6 +137,7 @@ void sync_process()
                 estimator.inputImage(time, image);
         }
 
+        //如果没有信息进入，休眠2ms 
         std::chrono::milliseconds dura(2);
         std::this_thread::sleep_for(dura);
     }
@@ -156,7 +158,7 @@ void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
 
     Vector3d acc(dx, dy, dz);
     Vector3d gyr(rx, ry, rz);
-    estimator.inputIMU(t, acc, gyr);//两个作用：一个是送入imu数据到buffer中，另一个是输出高频里程计
+    estimator.inputIMU(t, acc, gyr);//两个作用：一个是送入imu数据到buffer中，另一个是初始化完成后输出高频里程计
     return;
 }
 
@@ -244,7 +246,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "vins_estimator");//许ROS通过命令行进行名称重映射，指定节点名称的地方
     ros::NodeHandle n("~");//创建节点句柄-实际上将执行节点的初始化
     ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info);
-
+     
     // 确定输入参数个数为2
     if(argc != 2)
     {
@@ -273,12 +275,11 @@ int main(int argc, char **argv)
     //创建消息订阅者，订阅IMU、feature、restart、match_points的topic，执行各自回调函数
     ros::Subscriber sub_imu;
 
-// ros::Subscriber subscribe (const std::string &topic, uint32_t queue_size, void(*fp)(M), const TransportHints &transport_hints=TransportHints())
-// 第一个参数是订阅话题的名称；
-// 第二个参数是订阅队列的长度；（如果收到的消息都没来得及处理，那么新消息入队，旧消息就会出队）；
-// 第三个参数是回调函数的指针，指向回调函数来处理接收到的消息！
-// 第四个参数：似乎与延迟有关系，暂时不关心。（该成员函数有13重载）
-
+    // ros::Subscriber subscribe (const std::string &topic, uint32_t queue_size, void(*fp)(M), const TransportHints &transport_hints=TransportHints())
+    // 第一个参数是订阅话题的名称；
+    // 第二个参数是订阅队列的长度；（如果收到的消息都没来得及处理，那么新消息入队，旧消息就会出队）；
+    // 第三个参数是回调函数的指针，指向回调函数来处理接收到的消息！
+    // 第四个参数：似乎与延迟有关系，暂时不关心。（该成员函数有13重载）
 
     // 如果使用imu，才会调用imu话题
     if(USE_IMU)
@@ -303,7 +304,7 @@ int main(int argc, char **argv)
     ros::Subscriber sub_imu_switch = n.subscribe("/vins_imu_switch", 100, imu_switch_callback);//模式切换
     ros::Subscriber sub_cam_switch = n.subscribe("/vins_cam_switch", 100, cam_switch_callback);//模式切换
 
-    std::thread sync_thread{sync_process};
+    std::thread sync_thread{sync_process}; //主处理函数extract images with same timestamp from two topics
     ros::spin();
 
     return 0;

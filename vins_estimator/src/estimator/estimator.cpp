@@ -10,6 +10,7 @@
 #include "estimator.h"
 #include "../utility/visualization.h"
 
+// Estimator 构造函数：将initThreadFlag设为flase；然后将估计器状态清空（初始化）
 Estimator::Estimator(): f_manager{Rs}
 {
     ROS_INFO("init begins");
@@ -26,7 +27,7 @@ Estimator::~Estimator()
     }
 }
 
-// 重定位用，清除状态量
+// 清除状态量
 void Estimator::clearState()
 {
     mProcess.lock();
@@ -45,13 +46,15 @@ void Estimator::clearState()
     inputImageCnt = 0;
     initFirstPoseFlag = false;
 
+    // 滑动窗口中的数据清零
     for (int i = 0; i < WINDOW_SIZE + 1; i++)
     {
-        Rs[i].setIdentity();
-        Ps[i].setZero();
-        Vs[i].setZero();
-        Bas[i].setZero();
-        Bgs[i].setZero();
+        Rs[i].setIdentity();//旋转矩阵
+        Ps[i].setZero();//位置
+        Vs[i].setZero();//速度
+        Bas[i].setZero();//加速度偏差
+        Bgs[i].setZero();//角速度偏差
+
         dt_buf[i].clear();
         linear_acceleration_buf[i].clear();
         angular_velocity_buf[i].clear();
@@ -97,18 +100,22 @@ void Estimator::clearState()
 void Estimator::setParameter()
 {
     mProcess.lock();
+    // 将左右目相机到imu的旋转平移矩阵赋值给tic
     for (int i = 0; i < NUM_OF_CAM; i++)
     {
         tic[i] = TIC[i];
         ric[i] = RIC[i];
         cout << " exitrinsic cam " << i << endl  << ric[i] << endl << tic[i].transpose() << endl;
     }
-    f_manager.setRic(ric);
+    f_manager.setRic(ric);//将左右目相机到imu的旋转加入特征点管理器
+
     ProjectionTwoFrameOneCamFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Matrix2d::Identity();
     ProjectionTwoFrameTwoCamFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Matrix2d::Identity();
     ProjectionOneFrameTwoCamFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Matrix2d::Identity();
-    td = TD;
-    g = G;
+
+    td = TD;//时间变化量
+    g = G;//重力加速度
+
     cout << "set g " << g.transpose() << endl;
     featureTracker.readIntrinsicParameter(CAM_NAMES);//获得每个相机的内参
 
@@ -117,7 +124,7 @@ void Estimator::setParameter()
     if (MULTIPLE_THREAD && !initThreadFlag)
     {
         initThreadFlag = true;
-        processThread = std::thread(&Estimator::processMeasurements, this);
+        processThread = std::thread(&Estimator::processMeasurements, this);// 处理测量值；处理各buffer里的数据
     }
     mProcess.unlock();
 }
@@ -195,6 +202,7 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
             mBuf.unlock();
         }
     }
+    // 不是多线程就需要开始处理buf里的值
     else
     {
         mBuf.lock();
@@ -217,7 +225,7 @@ void Estimator::inputIMU(double t, const Vector3d &linearAcceleration, const Vec
     gyrBuf.push(make_pair(t, angularVelocity));
     //printf("input imu with time %f \n", t);
     mBuf.unlock();
-    // 2.如果solver_flag是非线性的，执行快速预测IMU，输出最新里程计数据；
+    // 2.如果系统初始化完成，执行快速预测IMU，输出最新里程计数据；
     if (solver_flag == NON_LINEAR)
     {
         mPropagate.lock();
@@ -226,7 +234,6 @@ void Estimator::inputIMU(double t, const Vector3d &linearAcceleration, const Vec
         mPropagate.unlock();
     }
 }
-
 
 void Estimator::inputFeature(double t, const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &featureFrame)
 {
@@ -287,7 +294,6 @@ bool Estimator::IMUAvailable(double t)
         return false;
 }
 
-
 // 处理测量值；处理各buffer里的数据
 void Estimator::processMeasurements()
 {
@@ -330,17 +336,18 @@ void Estimator::processMeasurements()
             {
                 if(!initFirstPoseFlag)
                 // 如果是第一帧,就根据imu的重力方向估计出大概的姿态
+                // 用初始时刻加速度方向对齐重力加速度方向，得到一个旋转，使得初始IMU的z轴指向重力加速度方向
                     initFirstIMUPose(accVector);
 
                 for(size_t i = 0; i < accVector.size(); i++)
                 {
-                    double dt;
-                    if(i == 0)
+                    double dt;//与上一帧的时间间隔
+                    if(i == 0)//第一帧
                         dt = accVector[i].first - prevTime;
-                    else if (i == accVector.size() - 1)
+                    else if (i == accVector.size() - 1)//倒数第二帧
                         dt = curTime - accVector[i - 1].first;
-                    else
-                        dt = accVector[i].first - accVector[i - 1].first;
+                    else//中间正常帧
+                        dt = accVector[i].first - accVector[i - 1].first;//当前帧时间戳-上一帧时间戳
                     //预积分
                     processIMU(accVector[i].first, dt, accVector[i].second, gyrVector[i].second);
                 }
@@ -368,6 +375,7 @@ void Estimator::processMeasurements()
         if (! MULTIPLE_THREAD)
             break;
 
+    //系统休眠2ms ，知道光流追踪的结果不为空 
         std::chrono::milliseconds dura(2);
         std::this_thread::sleep_for(dura);
     }
@@ -388,6 +396,7 @@ void Estimator::initFirstIMUPose(vector<pair<double, Eigen::Vector3d>> &accVecto
     }
     averAcc = averAcc / n;//求平均
     printf("averge acc %f %f %f\n", averAcc.x(), averAcc.y(), averAcc.z());
+
     Matrix3d R0 = Utility::g2R(averAcc);
     double yaw = Utility::R2ypr(R0).x();
     R0 = Utility::ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R0;
@@ -404,14 +413,14 @@ void Estimator::initFirstPose(Eigen::Vector3d p, Eigen::Matrix3d r)
     initR = r;
 }
 
-// 处理IMU数据，对IMU进行预积分；
+// 处理IMU数据，对IMU进行预积分；并提供优化状态量的初始值
 void Estimator::processIMU(double t, double dt, const Vector3d &linear_acceleration, const Vector3d &angular_velocity)
 {
     if (!first_imu)
     {
         first_imu = true;
-        acc_0 = linear_acceleration;
-        gyr_0 = angular_velocity;
+        acc_0 = linear_acceleration;//加速度计数据
+        gyr_0 = angular_velocity;//陀螺仪数据
     }
 
 // 滑窗中保留11帧，frame_count表示现在处理第几帧，一般处理到第11帧就保持不变

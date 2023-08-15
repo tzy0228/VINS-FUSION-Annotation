@@ -71,15 +71,15 @@ public:
     vector<cv::Point2f> n_pts;    // 每一帧中新提取的特征点
     vector<cv::Point2f> predict_pts;    // 预测的特征点
     vector<cv::Point2f> predict_pts_debug;    // 预测的特征点的debug
-    vector<cv::Point2f> prev_pts, cur_pts, cur_right_pts;    // 前帧点,当前帧特征点,和当前右图点
+    vector<cv::Point2f> prev_pts, cur_pts, cur_right_pts;    // 上一帧特征点,当前帧特征点（左目）,和当前右图点
     vector<cv::Point2f> prev_un_pts, cur_un_pts, cur_un_right_pts;    // 去畸变的前帧点,当前帧点,和当前右图点
     vector<cv::Point2f> pts_velocity, right_pts_velocity;    // 特征点的速度,
     vector<int> ids, ids_right;    // 特征点的id
-    vector<int> track_cnt;    // 追踪到点的数量
+    vector<int> track_cnt;    // 被连续追踪到点的次数
      
-    // 这几个哈希表在去畸变的时候用到了,但是没有找到填充数据的地方,是空映射有点疑惑
-    map<int, cv::Point2f> cur_un_pts_map, prev_un_pts_map;
-    map<int, cv::Point2f> cur_un_right_pts_map, prev_un_right_pts_map;
+    
+    map<int, cv::Point2f> cur_un_pts_map, prev_un_pts_map;//左目 ：当前特征点的ID和特征点的位置打包  ，   上一帧特征点的ID和特征点的位置打包
+    map<int, cv::Point2f> cur_un_right_pts_map, prev_un_right_pts_map;// 右目 ：当前特征点的ID和特征点的位置打包  ，   上一帧特征点的ID和特征点的位置打包
     map<int, cv::Point2f> prevLeftPtsMap;
 
     vector<camodocal::CameraPtr> m_camera;    // 相机参数和工具

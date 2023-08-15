@@ -23,10 +23,11 @@ class IntegrationBase
                     const Eigen::Vector3d &_linearized_ba, const Eigen::Vector3d &_linearized_bg)
         : acc_0{_acc_0}, gyr_0{_gyr_0}, linearized_acc{_acc_0}, linearized_gyr{_gyr_0},
           linearized_ba{_linearized_ba}, linearized_bg{_linearized_bg},
-            jacobian{Eigen::Matrix<double, 15, 15>::Identity()}, covariance{Eigen::Matrix<double, 15, 15>::Zero()},
+            jacobian{Eigen::Matrix<double, 15, 15>::Identity()}, covariance{Eigen::Matrix<double, 15, 15>::Zero()},//雅克比矩阵和协方差矩阵初始为单位阵和零矩阵
           sum_dt{0.0}, delta_p{Eigen::Vector3d::Zero()}, delta_q{Eigen::Quaterniond::Identity()}, delta_v{Eigen::Vector3d::Zero()}
 
     {
+         //noise的协方差矩阵
         noise = Eigen::Matrix<double, 18, 18>::Zero();
         noise.block<3, 3>(0, 0) =  (ACC_N * ACC_N) * Eigen::Matrix3d::Identity();
         noise.block<3, 3>(3, 3) =  (GYR_N * GYR_N) * Eigen::Matrix3d::Identity();
@@ -51,8 +52,8 @@ class IntegrationBase
     {
         // 状态全部清零
         sum_dt = 0.0;
-        acc_0 = linearized_acc;
-        gyr_0 = linearized_gyr;
+        acc_0 = linearized_acc;//加速度计数据
+        gyr_0 = linearized_gyr;//陀螺仪计数据
         delta_p.setZero();
         delta_q.setIdentity();
         delta_v.setZero();
@@ -159,19 +160,19 @@ class IntegrationBase
     }
 
 
-
+    // 传播函数
     void propagate(double _dt, const Eigen::Vector3d &_acc_1, const Eigen::Vector3d &_gyr_1)
     {
         dt = _dt;
         acc_1 = _acc_1;
         gyr_1 = _gyr_1;
-        Vector3d result_delta_p;
-        Quaterniond result_delta_q;
-        Vector3d result_delta_v;
-        Vector3d result_linearized_ba;
-        Vector3d result_linearized_bg;
+        Vector3d result_delta_p;//下一帧的delta_p
+        Quaterniond result_delta_q;//下一帧的delta_q
+        Vector3d result_delta_v;//下一帧delta_v
+        Vector3d result_linearized_ba;//下一帧linearized_ba
+        Vector3d result_linearized_bg;//下一帧linearized_bg
 
-
+        //中值积分函数
         midPointIntegration(_dt, acc_0, gyr_0, _acc_1, _gyr_1, delta_p, delta_q, delta_v,
                             linearized_ba, linearized_bg,
                             result_delta_p, result_delta_q, result_delta_v,
@@ -223,18 +224,18 @@ class IntegrationBase
     Eigen::Vector3d acc_0, gyr_0;
     Eigen::Vector3d acc_1, gyr_1;
 
-    const Eigen::Vector3d linearized_acc, linearized_gyr;
-    Eigen::Vector3d linearized_ba, linearized_bg;
+    const Eigen::Vector3d linearized_acc, linearized_gyr;//加速度计数据 ， 陀螺仪数据
+    Eigen::Vector3d linearized_ba, linearized_bg;//加速度零偏。陀螺仪零偏
 
-    Eigen::Matrix<double, 15, 15> jacobian, covariance;
+    Eigen::Matrix<double, 15, 15> jacobian, covariance;//雅可比矩阵（15*15），协方差矩阵（15*15）
     Eigen::Matrix<double, 15, 15> step_jacobian;
     Eigen::Matrix<double, 15, 18> step_V;
     Eigen::Matrix<double, 18, 18> noise;
 
     double sum_dt;
-    Eigen::Vector3d delta_p;
-    Eigen::Quaterniond delta_q;
-    Eigen::Vector3d delta_v;
+    Eigen::Vector3d delta_p;//位移变化量
+    Eigen::Quaterniond delta_q;//四元数 y（伽马）变化量
+    Eigen::Vector3d delta_v;//速度变化量
 
     std::vector<double> dt_buf;
     std::vector<Eigen::Vector3d> acc_buf;

@@ -127,21 +127,21 @@ class Estimator
 
     enum SolverFlag// VINS系统的两种状态：
     {
-        INITIAL,
-        NON_LINEAR
+        INITIAL,// 还未成功初始化
+        NON_LINEAR // 已成功初始化，正处于紧耦合优化状态
     };
 
     enum MarginalizationFlag
     {
-        MARGIN_OLD = 0,// 还未成功初始化
-        MARGIN_SECOND_NEW = 1 // 已成功初始化，正处于紧耦合优化状态
+        MARGIN_OLD = 0,
+        MARGIN_SECOND_NEW = 1 
     };
 
     std::mutex mProcess;//进程互斥信号
     std::mutex mBuf;//缓存空间互斥信号
     std::mutex mPropagate;//传播的互斥访问信号
-    queue<pair<double, Eigen::Vector3d>> accBuf;//加速度计数据缓冲区
-    queue<pair<double, Eigen::Vector3d>> gyrBuf;//陀螺仪数据缓冲区
+    queue<pair<double, Eigen::Vector3d>> accBuf;//加速度计数据缓冲区（pair： 时间戳+加速度数据）
+    queue<pair<double, Eigen::Vector3d>> gyrBuf;//陀螺仪数据缓冲区（pair： 时间戳+陀螺仪数据）
     queue<pair<double, map<int, vector<pair<int, Eigen::Matrix<double, 7, 1> > > > > > featureBuf;//特征点（7维）数据缓冲区
     double prevTime, curTime;//上一帧时间戳,当前帧时间戳
     bool openExEstimation;
@@ -152,20 +152,22 @@ class Estimator
     // 特征追踪器 用来对原始图像进行畸变校正，特征点采集，光流跟踪
     FeatureTracker featureTracker;
 
-    SolverFlag solver_flag;
+    SolverFlag solver_flag;//系统初始化标志位
+
     MarginalizationFlag  marginalization_flag;
     Vector3d g;//重力加速度在各个方向上的分量；最开始由参数设置函数确定，在初始化过程中还要进行后续优化
 
     Matrix3d ric[2];
     Vector3d tic[2];
 
-    // 滑动窗口中的数据；位置、速度、旋转矩阵、加速度偏差、角速度偏差
-    Vector3d        Ps[(WINDOW_SIZE + 1)];
-    Vector3d        Vs[(WINDOW_SIZE + 1)];
-    Matrix3d        Rs[(WINDOW_SIZE + 1)];
-    Vector3d        Bas[(WINDOW_SIZE + 1)];
-    Vector3d        Bgs[(WINDOW_SIZE + 1)];
-    double td;时间变化量
+    // 滑动窗口中的数据
+    Vector3d        Ps[(WINDOW_SIZE + 1)];//位置
+    Vector3d        Vs[(WINDOW_SIZE + 1)];//速度
+    Matrix3d        Rs[(WINDOW_SIZE + 1)];//旋转矩阵
+    Vector3d        Bas[(WINDOW_SIZE + 1)];//加速度偏差
+    Vector3d        Bgs[(WINDOW_SIZE + 1)];//角速度偏差
+
+    double td;//时间变化量
 
     Matrix3d back_R0, last_R, last_R0;
     Vector3d back_P0, last_P, last_P0;
@@ -174,26 +176,27 @@ class Estimator
     IntegrationBase *pre_integrations[(WINDOW_SIZE + 1)];//滑动窗口里边存放的imu预积分
     Vector3d acc_0, gyr_0;//IMU的加速度，陀螺仪初始值
 
+    // 滑动窗口成员：dt（时间）、加速度数据、角速度数据
     vector<double> dt_buf[(WINDOW_SIZE + 1)];
     vector<Vector3d> linear_acceleration_buf[(WINDOW_SIZE + 1)];
     vector<Vector3d> angular_velocity_buf[(WINDOW_SIZE + 1)];
 
-    int frame_count;
-    int sum_of_outlier, sum_of_back, sum_of_front, sum_of_invalid;
-    int inputImageCnt;
+    int frame_count;//窗口内第几帧，最大值位WINDOW+SIZE+1
+    int sum_of_outlier, sum_of_back, sum_of_front, sum_of_invalid;//外点个数，后点个数，前点个数，无效点个数
+    int inputImageCnt;//输入图片数目
 
-    FeatureManager f_manager;
-    MotionEstimator m_estimator;
-    InitialEXRotation initial_ex_rotation;
+    FeatureManager f_manager;//特征点管理器:用来对滑动窗口内所有特征点的管理。
+    MotionEstimator m_estimator;//运动估计器
+    InitialEXRotation initial_ex_rotation;//定义一个估计外部参数校准的对象
 
-    bool first_imu;
+    bool first_imu;//该图像之后的第一个imu
     bool is_valid, is_key;
-    bool failure_occur;
+    bool failure_occur;//检测是否发生了错误,在failureDetection中
 
-    vector<Vector3d> point_cloud;
-    vector<Vector3d> margin_cloud;
-    vector<Vector3d> key_poses;
-    double initial_timestamp;
+    vector<Vector3d> point_cloud;//点云
+    vector<Vector3d> margin_cloud;//边缘云
+    vector<Vector3d> key_poses;//关键姿态
+    double initial_timestamp;//初始时间戳
 
 
     double para_Pose[WINDOW_SIZE + 1][SIZE_POSE];
@@ -206,19 +209,22 @@ class Estimator
 
     int loop_window_index;
 
-    MarginalizationInfo *last_marginalization_info;
-    vector<double *> last_marginalization_parameter_blocks;
+    MarginalizationInfo *last_marginalization_info;//上一时刻的先验信息,也就是上一个H矩阵matg掉一部分后剩下的内容
+    vector<double *> last_marginalization_parameter_blocks;//最新的边缘化参数块
 
-    map<double, ImageFrame> all_image_frame;
-    IntegrationBase *tmp_pre_integration;
+    map<double, ImageFrame> all_image_frame;//图像帧的哈希表<时间戳，图像帧>；
+    IntegrationBase *tmp_pre_integration;//输入到图像中的预积分值
 
-    Eigen::Vector3d initP;
-    Eigen::Matrix3d initR;
+    Eigen::Vector3d initP;//初始化的位置
+    Eigen::Matrix3d initR;//初始化的姿态
 
+    //最新的系统状态
     double latest_time;
     Eigen::Vector3d latest_P, latest_V, latest_Ba, latest_Bg, latest_acc_0, latest_gyr_0;
     Eigen::Quaterniond latest_Q;
 
+    //IMU初始位姿的flag
     bool initFirstPoseFlag;
-    bool initThreadFlag;
+
+    bool initThreadFlag;//线程标志
 };

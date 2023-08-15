@@ -18,6 +18,7 @@
 #include "../utility/tic_toc.h"
 #include "../estimator/parameters.h"
 
+// 同一个相机前后两帧间的残差项
 class ProjectionTwoFrameOneCamFactor : public ceres::SizedCostFunction<2, 7, 7, 7, 1, 1>
 {
   public:

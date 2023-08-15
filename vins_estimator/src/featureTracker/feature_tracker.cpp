@@ -133,7 +133,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             clahe->apply(rightImg, rightImg);
     }
     */
-    cur_pts.clear();
+    cur_pts.clear();//清空当前帧特征点信息
 
 // 和上一帧做光流追踪
     if (prev_pts.size() > 0)
@@ -216,7 +216,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         ROS_DEBUG("detect feature begins");
         TicToc t_t;
 
-        //新需要提的特征点数目=最大特征点数目-存留的特征点数目
+        //新需要提的特征点数目=单帧最大特征点数目-存留的特征点数目
         int n_max_cnt = MAX_CNT - static_cast<int>(cur_pts.size());
 
         if (n_max_cnt > 0)
@@ -338,9 +338,11 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         double velocity_x, velocity_y;
         velocity_x = pts_velocity[i].x;
         velocity_y = pts_velocity[i].y;
+        
         // 放入xyz_uv_velocity中
         Eigen::Matrix<double, 7, 1> xyz_uv_velocity;
         xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
+        // 将camera_id和xyz_uv_velocity放入featureFrame中
         featureFrame[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
     }
     // 右目对结果进行总结 ,和上面一样
@@ -482,31 +484,35 @@ vector<cv::Point2f> FeatureTracker::ptsVelocity(vector<int> &ids, vector<cv::Poi
     cur_id_pts.clear();
     for (unsigned int i = 0; i < ids.size(); i++)
     {
-        cur_id_pts.insert(make_pair(ids[i], pts[i]));
+        cur_id_pts.insert(make_pair(ids[i], pts[i]));//将特征点的ID和点的位置打包
     }
 
     // caculate points velocity
+    // 如果上一帧特征点的ID和点的位置配对包不为空，就计算当前帧的特征点的速度
     if (!prev_id_pts.empty())
     {
         double dt = cur_time - prev_time;//两帧之间的时间差 dt
         
         for (unsigned int i = 0; i < pts.size(); i++)
         {
-            std::map<int, cv::Point2f>::iterator it;
-            it = prev_id_pts.find(ids[i]);
-            // 找到同一个特征点
-            if (it != prev_id_pts.end())
+            std::map<int, cv::Point2f>::iterator it;// 迭代器
+            it = prev_id_pts.find(ids[i]);// 找到同一个特征点
+
+            if (it != prev_id_pts.end())//在map中寻找是否出现过id，判断是否最新点
             {
-                double v_x = (pts[i].x - it->second.x) / dt;
+                double v_x = (pts[i].x - it->second.x) / dt;// 当前帧  —  地图点上一帧
                 double v_y = (pts[i].y - it->second.y) / dt;
-                // 得到归一化平面上的速度
+                
+                //之前出现过，push_back即可得到归一化平面上的速度
                 pts_velocity.push_back(cv::Point2f(v_x, v_y));
             }
             else
+            // 之前没出现过，先放进去但是速度为0
                 pts_velocity.push_back(cv::Point2f(0, 0));
 
         }
     }
+    // 如果是第一帧刚进来的，就把特征点速度都设置为0
     else
     {
         for (unsigned int i = 0; i < cur_pts.size(); i++)

@@ -9,6 +9,7 @@
 
 #include "feature_manager.h"
 
+//返回最后一个观测到这个特征点的图像帧ID
 int FeaturePerId::endFrame()
 {
     return start_frame + feature_per_frame.size() - 1;
@@ -21,6 +22,7 @@ FeatureManager::FeatureManager(Matrix3d _Rs[])
         ric[i].setIdentity();
 }
 
+// 将estimator.cpp中的左右目ric（cam to imu 赋值给 FeatureManager类中的private变量）
 void FeatureManager::setRic(Matrix3d _ric[])
 {
     for (int i = 0; i < NUM_OF_CAM; i++)
@@ -29,20 +31,23 @@ void FeatureManager::setRic(Matrix3d _ric[])
     }
 }
 
+
 void FeatureManager::clearState()
 {
     feature.clear();
 }
 
+//窗口中被跟踪的特征点数量
 int FeatureManager::getFeatureCount()
 {
     int cnt = 0;
     for (auto &it : feature)
     {
+        // 如果该特征点有两帧以上观测到了  且第一次观测到帧数不是在最后
         it.used_num = it.feature_per_frame.size();
         if (it.used_num >= 4)
         {
-            cnt++;
+            cnt++;// 这个特征点是有效的
         }
     }
     return cnt;
@@ -51,11 +56,11 @@ int FeatureManager::getFeatureCount()
 //基于特征点的视差来判断当前帧是否属于关键帧. 如果返回true,则是关键帧,就把最old的点给边缘化掉,否则就把倒数第二个边缘化掉
 bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, double td)
 {
-    ROS_DEBUG("input feature: %d", (int)image.size());
-    ROS_DEBUG("num of feature: %d", getFeatureCount());
-    double parallax_sum = 0;
+    ROS_DEBUG("input feature: %d", (int)image.size());// 特征点数量
+    ROS_DEBUG("num of feature: %d", getFeatureCount());// 能够作为特征点的数量
+    double parallax_sum = 0;// 所有特征点视差总和
     int parallax_num = 0;
-    last_track_num = 0;
+    last_track_num = 0;// 被跟踪的个数
     last_average_parallax = 0;
     new_feature_num = 0;
     long_track_num = 0;
@@ -155,6 +160,7 @@ vector<pair<Vector3d, Vector3d>> FeatureManager::getCorresponding(int frame_coun
     return corres;
 }
 
+//设置特征点逆深度
 void FeatureManager::setDepth(const VectorXd &x)
 {
     int feature_index = -1;
@@ -570,8 +576,8 @@ double FeatureManager::compensatedParallax2(const FeaturePerId &it_per_id, int f
     //check the second last frame is keyframe or not
     //parallax betwwen seconde last frame and third last frame
     // 找到相同的两帧
-    const FeaturePerFrame &frame_i = it_per_id.feature_per_frame[frame_count - 2 - it_per_id.start_frame];
-    const FeaturePerFrame &frame_j = it_per_id.feature_per_frame[frame_count - 1 - it_per_id.start_frame];
+    const FeaturePerFrame &frame_i = it_per_id.feature_per_frame[frame_count - 2 - it_per_id.start_frame];// 倒数第三帧
+    const FeaturePerFrame &frame_j = it_per_id.feature_per_frame[frame_count - 1 - it_per_id.start_frame];// 倒数第二帧
 
     double ans = 0;
     Vector3d p_j = frame_j.point;
